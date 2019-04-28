@@ -4,6 +4,9 @@ from django.conf import settings
 import urllib.parse
 import requests
 import json
+import base64
+import hmac
+import hashlib
 import facebook
 
 from .models import UserProfile
@@ -121,4 +124,36 @@ def error(request):
     return render(request, 'error.html', args)
 
 def deauth(request):
-    pass
+    try:
+        signed_request = request.POST['signed_request']
+        encoded_sig, payload = signed_request.split('.')
+    except (ValueError, KeyError):
+        print('Invalid request')
+
+    try:
+        decoded_payload = base64.urlsafe_b64decode(payload + "==").decode('utf-8')
+        decoded_payload = json.loads(decoded_payload)
+
+        if type(decoded_payload) is not dict or 'user_id' not in decoded_payload.keys():
+            print('Invalid payload data')
+
+    except (ValueError, json.JSONDecodeError):
+        print('Could not decode payload')
+
+    try:
+        secret = settings.FACEBOOK_SECRET
+
+        sig = base64.urlsafe_b64decode(encoded_sig + "==")
+        expected_sig = hmac.new(bytes(secret, 'utf-8'), bytes(payload, 'utf-8'), hashlib.sha256)
+    except:
+        print('Could not decode signature')
+
+    if not hmac.compare_digest(expected_sig.digest(), sig):
+        print('Invalid request')
+
+    user_id = decoded_payload['user_id']
+
+    try:
+        user = UserProfile.objects.get(fb_id=user_id).update(is_active=False)
+    except UserProfile.DoesNotExist:
+        print('succeeded')
