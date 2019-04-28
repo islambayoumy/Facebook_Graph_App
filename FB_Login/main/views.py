@@ -32,27 +32,37 @@ def login(request):
 
         return render(request, 'login.html', {'url': url})
     elif error:
-        args = {'error': error}
-        return render(request, 'error.html', args)
+        return redirect('/error?error={}'.format(error))
     else:
-        long_token = login_request(settings.FACEBOOK_KEY, settings.FACEBOOK_SECRET, code)
-
-        request.session['access_token'] = long_token
-        return redirect('index')
+        long_token, msg = login_request(
+                                settings.FACEBOOK_KEY,
+                                settings.FACEBOOK_SECRET,
+                                code
+                            )
+        if long_token:
+            request.session['access_token'] = long_token
+            return redirect('index')
+        else:
+            return redirect('/error?error={}'.format(msg))
 
 def login_request(app_id, app_secret, code):
     short_token = get_short_access_token(app_id, app_secret, code)
     long_token = exchange_access_token_len(app_id, app_secret, short_token)
 
-    if UserProfile.objects.filter(access_token=long_token):
-        print("get data from db")
+    data = get_primary_data_from_profile(long_token)
+    user = UserProfile.objects.filter(fb_id=data['id'])
+
+    if user:
+        try:
+            user.update(access_token=long_token)
+        except:
+            return False, "updating failed"
     else:
-        data = get_data_from_profile(long_token)
-        print("save to db")
+        result, msg = save_user_data_to_db(data, long_token)
+        if not result:
+            return False, msg
 
-    # return data with the token
-
-    return long_token
+    return long_token, None
 
 def get_short_access_token(app_id, app_secret, code):
     base_url = 'https://graph.facebook.com/v3.2/oauth/access_token?{}'
@@ -80,16 +90,37 @@ def exchange_access_token_len(app_id, app_secret, user_short_token):
     result = requests.get(access_token_url).content
 
     access_token_info = json.loads(result.decode("utf-8"))
+
     return access_token_info['access_token']
 
-def get_data_from_profile(user_long_token):
+def get_primary_data_from_profile(user_long_token):
     fields = "id,email,name,picture{url},first_name,last_name"
     graph = facebook.GraphAPI(access_token=user_long_token, version="3.1")
     return graph.get_object(id='me', fields=fields)
 
+def save_user_data_to_db(data, user_long_token):
+    try:
+        user = User.objects.create(
+            email=data['email'],
+            first_name=data['first_name'],
+            last_name=data['last_name'])
+        user_obj = UserProfile.objects.create(
+            user=user,
+            access_token=user_long_token,
+            picture=data['picture']['data']['url'],
+            fb_id=data['id'])
+        return True, 'added successfully'
+    except:
+        return False, 'error saving'
+
 def logout(request):
     request.session['access_token'] = None
     return redirect('login')
+
+def error(request):
+    msg = request.GET.get('error', '')
+    args = {'error': msg}
+    return render(request, 'error.html', args)
 
 def deauth(request):
     pass
