@@ -1,6 +1,5 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, reverse
 from django.conf import settings
-from django.http import HttpResponse
 
 import urllib.parse
 import requests
@@ -12,8 +11,10 @@ from django.contrib.auth.models import User
 
 
 def index(request):
-    if request.session.get('access_token', None):
-        return render(request, 'index.html')
+    token = request.session.get('access_token', None)
+    if token:
+        data = get_primary_data_from_profile(token)
+        return render(request, 'index.html', data)
     else:
         return redirect('login')
 
@@ -34,13 +35,10 @@ def login(request):
     elif error:
         return redirect('/error?error={}'.format(error))
     else:
-        long_token, msg = login_request(
-                                settings.FACEBOOK_KEY,
-                                settings.FACEBOOK_SECRET,
-                                code
-                            )
+        long_token, msg = login_request(settings.FACEBOOK_KEY,settings.FACEBOOK_SECRET,code)
         if long_token:
             request.session['access_token'] = long_token
+            
             return redirect('index')
         else:
             return redirect('/error?error={}'.format(msg))
