@@ -5,6 +5,7 @@ from django.http import HttpResponse
 import urllib.parse
 import requests
 import json
+import facebook
 
 from .models import UserProfile
 from django.contrib.auth.models import User
@@ -46,7 +47,10 @@ def login_request(app_id, app_secret, code):
     if UserProfile.objects.filter(access_token=long_token):
         print("get data from db")
     else:
+        data = get_data_from_profile(long_token)
         print("save to db")
+
+    # return data with the token
 
     return long_token
 
@@ -77,6 +81,11 @@ def exchange_access_token_len(app_id, app_secret, user_short_token):
 
     access_token_info = json.loads(result.decode("utf-8"))
     return access_token_info['access_token']
+
+def get_data_from_profile(user_long_token):
+    fields = "id,email,name,picture{url},first_name,last_name"
+    graph = facebook.GraphAPI(access_token=user_long_token, version="3.1")
+    return graph.get_object(id='me', fields=fields)
 
 def logout(request):
     request.session['access_token'] = None
