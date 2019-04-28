@@ -39,7 +39,6 @@ def login(request):
         request.session['access_token'] = long_token
         return redirect('index')
 
-
 def login_request(app_id, app_secret, code):
     short_token = get_short_access_token(app_id, app_secret, code)
     long_token = exchange_access_token_len(app_id, app_secret, short_token)
@@ -50,7 +49,6 @@ def login_request(app_id, app_secret, code):
         print("save to db")
 
     return long_token
-
 
 def get_short_access_token(app_id, app_secret, code):
     base_url = 'https://graph.facebook.com/v3.2/oauth/access_token?{}'
@@ -81,7 +79,8 @@ def exchange_access_token_len(app_id, app_secret, user_short_token):
     return access_token_info['access_token']
 
 def logout(request):
-    pass
+    request.session['access_token'] = None
+    return redirect('login')
 
 def deauth(request):
     pass
