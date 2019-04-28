@@ -1,10 +1,13 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 
 def index(request):
-    pass
+    if request.session.get('access_token', None):
+        return render(request, 'index.html')
+    else:
+        return redirect('login')
 
 def login(request):
-    pass
+    return render(request, 'login.html')
 
 def logout(request):
     pass
